@@ -3,7 +3,5 @@ description: Ondokuz Mayıs Üniversitesi Bulutu
 logo: /assets/logo/icon.png
 show_downloads: false
 theme: jekyll-theme-minimal
-include:
-  - _site/_
 keep_files:
   - _
