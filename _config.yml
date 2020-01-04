@@ -4,4 +4,4 @@ logo: /assets/logo/icon.png
 show_downloads: false
 theme: jekyll-theme-minimal
 include:
-  - _
+  - "_"
