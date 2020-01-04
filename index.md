@@ -2,8 +2,8 @@
 layout: default
 ---
 
-İmajlar
--------
+Images
+=======
 
-- [buster](https://file.omu.sh/box/buster)
-- [stretch](https://file.omu.sh/box/stretch)
+- [Debian Buster](https://file.omu.sh/box/buster)
+- [Debian Stretch](https://file.omu.sh/box/stretch)

@@ -1,9 +1,10 @@
 title: OMU Cloud
-description: Ondokuz Mayıs Üniversitesi Bulutu
-logo: /assets/logo/icon.png
-show_downloads: false
+description: Ondokuz Mayıs University Cloud Images
+logo: /assets/logo/logo.svg
 theme: jekyll-theme-minimal
-#
+github:
+  repository_url: https://github.com/omu/cloud
+
 include:
   - _.html
 defaults:
