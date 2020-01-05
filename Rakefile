@@ -4,7 +4,7 @@ task all: %i[build lint]
 
 desc 'Build'
 task :build do
-  sh "scedilla _.sh >_.html"
+  sh 'scedilla _.sh >_.html'
 end
 
 desc 'Clean'
