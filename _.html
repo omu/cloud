@@ -1,1 +1,89 @@
-echo OK
+#!/usr/bin/env bash
+
+[ -n "${BASH_VERSION:-}"        ] || { echo >&2 'Bash required.';                     exit 1; }
+[[ ${BASH_VERSINFO[0]:-} -ge 4 ]] || { echo >&2 'Bash version 4 or higher required.'; exit 1; }
+
+.available() {
+	command -v "${1?${FUNCNAME[0]}: missing argument}" &>/dev/null
+}
+
+.bye() {
+	if [[ $# -gt 0 ]]; then
+		echo -e >&2 "$*"
+	else
+		echo >&2 ""
+	fi
+
+	exit 0
+}
+
+.callable() {
+	[[ $(type -t "${1?${FUNCNAME[0]}: missing argument}" || true) == function ]]
+}
+
+.contains() {
+	: "${1?${FUNCNAME[0]}: missing argument}"
+
+	local element
+
+	for element in "${@:2}"; do
+		if [[ $element = "$1" ]]; then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+.cry() {
+	if [[ $# -gt 0 ]]; then
+		echo -e >&2 "W: $*"
+	else
+		echo >&2 ""
+	fi
+}
+
+.die() {
+	if [[ $# -gt 0 ]]; then
+		echo -e >&2 "E: $*"
+	else
+		echo >&2 ""
+	fi
+
+	exit 1
+}
+
+.must() {
+	if [[ ${1:-} = -- ]]; then
+		shift
+
+		eval -- "${@?${FUNCNAME[0]}: missing argument}" || .die "Command failed: $*"
+	else
+		eval -- "${@:2}" || .die "${1?${FUNCNAME[0]}: missing argument}"
+	fi
+}
+
+.privileged() {
+	.must 'Root permissions required; use sudo(1)' [[ ${EUID:-} -eq 0 ]]
+}
+
+# Init
+
+# shellcheck disable=2034,2128
+.prelude() {
+	set -Eeuo pipefail; shopt -s nullglob; [[ -z ${TRACE:-} ]] || set -x; unset CDPATH; IFS=$' \t\n'
+
+	export LC_ALL=C.UTF-8 LANG=C.UTF-8
+
+	# Program name
+	declare -gr PROGNAME=${0##*/}
+
+	# Command names
+	declare -g CMDNAMES=()
+}
+
+.prelude
+
+main() {
+	:
+}
