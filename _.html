@@ -7,6 +7,16 @@
 	command -v "${1?${FUNCNAME[0]}: missing argument}" &>/dev/null
 }
 
+.bug() {
+	if [[ $# -gt 0 ]]; then
+		echo -e >&2 "BUG: $*"
+	else
+		echo >&2 ""
+	fi
+
+	exit 127
+}
+
 .bye() {
 	if [[ $# -gt 0 ]]; then
 		echo -e >&2 "$*"
@@ -67,6 +77,11 @@
 	.must 'Root permissions required; use sudo(1)' [[ ${EUID:-} -eq 0 ]]
 }
 
+.say() {
+	echo -e "${@-""}" >&2
+}
+
+
 # Init
 
 # shellcheck disable=2034,2128
@@ -84,8 +99,185 @@
 
 .prelude
 
+# callback.sh - Handle callback functions
+
+.callback() {
+	local group=${1?${FUNCNAME[0]}: missing argument}; shift
+
+	local -a _callback_funcs_
+
+	mapfile -t _callback_funcs_ < <(
+		shopt -s extdebug
+
+		declare -F | awk '/^declare -f '"$group"'[.]/ { print $3 }' |
+		while read -r func; do declare -F "$func"; done |
+		sort -t' ' -k2 -n | cut -f1 -d' '
+	)
+
+	local func
+
+	local -a _callback_early_ _callback_now_ _callback_late_
+
+	for func in "${_callback_funcs_[@]}"; do
+		case $func in
+		*_early|*.early_|*.early) _callback_early_+=("$func") ;;
+		*_late|*.late_|*.late)    _callback_late_+=("$func")  ;;
+		*)                        _callback_now_+=("$func")   ;;
+		esac
+	done
+
+	local failer=$group.fail
+	.callable "$failer" || failer=.callback-fail-default-
+
+	local -i err=0
+
+	for func in "${_callback_early_[@]}"; do
+		"$func" "$@" || { "$failer" "$func" "$@"; err+=1; }
+	done
+
+	for func in "${_callback_now_[@]}"; do
+		"$func" "$@" || { "$failer" "$@"; err+=1; }
+	done
+
+	for func in "${_callback_late_[@]}"; do
+		"$func" "$@" ||  { "$failer" "$@"; err+=1; }
+	done
+
+	return $err
+}
+
+# callback - Private functions
+
+.callback-fail-default-() {
+	local func=${1?${FUNCNAME[0]}: missing argument}; shift
+
+	case ${SIGNAL:-} in
+	INT|QUIT) return 0 ;;
+	esac
+
+	.cry "Callback failed: $func"
+}
+
+# defer.sh - Deferred functions
+
+# Register files/directories to clean up at exit
+.clean() {
+	[[ -v _defer_initialized_ ]] || .defer
+
+	_defer_clean_+=("$@")
+}
+
+# Trap defer setup
+# shellcheck disable=2120
+.defer() {
+	if [[ -v _defer_initialized_ ]]; then
+		return
+	else
+		_defer_initialized_=true
+
+		declare -ag _defer_clean_=()
+
+		if [[ -n $(builtin trap -p 2>/dev/null) ]]; then
+			.cry 'Trap already taken.'
+
+			return
+		fi
+	fi
+
+	local -a signals=("$@")
+	[[ $# -gt 0 ]] || signals=(EXIT HUP INT KILL QUIT TERM)
+
+	local signal
+	for signal in "${signals[@]}"; do
+		# shellcheck disable=2064
+		builtin trap "_defer_ $signal" "$signal"
+	done
+
+	# Prevent using trap
+	trap() {
+		.bug 'Using trap is forbidden; please use defer.* functions.'
+	}
+
+	# shellcheck disable=2139
+	alias .untrap="trap - ${signals[*]}"
+
+	_defer_() {
+		local -r SIGNAL=$1 ERR=$?
+
+		.callback defer
+
+		if [[ -v _defer_clean_ ]] && [[ "${#_defer_clean_[@]}" -gt 0 ]]; then
+			rm -rf -- "${_defer_clean_[@]}"
+		fi
+
+		builtin trap - EXIT
+
+		if [[ $SIGNAL = INT ]] || [[ $SIGNAL = QUIT ]]; then
+			builtin trap - "$SIGNAL"; kill -s "$SIGNAL" "$$"
+		fi
+
+		return "$ERR"
+	}
+
+	readonly -f _defer_
+}
+
+# temp.sh - Functions involving temporary directories or files
+
+# Remove temp files or directories
+temp.clean() {
+	while [[ $# -gt 0 ]]; do
+		local -n temp_clean_=$1; shift
+
+		rm -rf -- "$temp_clean_"
+	done
+}
+
+# Create a temp dir
+temp.dir() {
+	# shellcheck disable=2155
+	local -n temp_dir_=${1?${FUNCNAME[0]}: missing argument}; shift
+
+	local dir
+
+	# shellcheck disable=2128
+	dir=$(mktemp -p "${TMPDIR:-/tmp}" -d "$PROGNAME".XXXXXXXX) || .die 'Fatal error: mktemp'
+	.clean "$dir"
+
+	# shellcheck disable=2034
+	temp_dir_=$dir
+}
+
+# Create a temp file
+temp.file() {
+	# shellcheck disable=2155
+	local -n temp_file_=${1?${FUNCNAME[0]}: missing argument}; shift
+
+	local file
+
+	# shellcheck disable=2128
+	file=$(mktemp -p "${TMPDIR:-/tmp}" "$PROGNAME".XXXXXXXX) || .die 'Fatal error: mktemp'
+	.clean "$file"
+
+	# shellcheck disable=2034
+	temp_file_=$file
+}
+
+# Execute command in temp dir
+temp.inside() {
+	# shellcheck disable=2128
+	local temp_inside_ orig_dir_=$PWD
+	temp.dir temp_inside_
+
+	.must -- cd "$temp_inside_"
+	"$@"
+	.must -- cd "$orig_dir_"
+
+	rm -rf -- "$temp_inside_"
+}
+
 main() {
-	echo "$@"
+	echo "$@" # hmm
 }
 
 main "$@"
