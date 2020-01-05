@@ -9,7 +9,7 @@ end
 
 desc 'Clean'
 task :clean do
-  rm_f %w[_.html .sass-cache _site]
+  rm_f %w[.sass-cache _site]
 end
 
 desc 'Lint'
